@@ -1,0 +1,163 @@
+---
+output:
+    html_document:
+        keep_md: true
+---
+
+# Practical Machine Learning - Course Project
+
+Prepared By: Jack Welch
+
+Prepared Date: June 27, 2017
+
+
+## Introduction
+
+This is our project within the **Practical Machine Learning** course in the Johns Hopkins University Data Science Specialization offered on Coursera. This project will introduce us to activity or fitment data collected from monitoring devices available from organizations such as FitBit, Nike, Fuelband, or Jawbone Up.  This assignment will specifically introduce us to methods for creating predictions based on patterns within a dataset.  
+
+## Assignment Overview
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out-of-sample-error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+## Data Source
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+## Loading and Preprocessing the Data
+
+### Use cache
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+### Set random seed
+
+Set a random seed in order to assure repeatability of this report.
+
+```{r}
+set.seed(1984)
+```
+
+### Load the training and test data
+
+If local files don't exist, download and load data into data frames `training` and `testing` with read.csv() method.  The data frame is the R format which makes the file suitable for analysis.  For a simple visualization of the raw data, we can output the structure of the dataframe using the  str() function.
+
+```{r}
+if (!file.exists("pml-training.csv")) {
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile="pml-training.csv", method="libcurl")
+}
+
+if (!file.exists("pml-testing.csv")) {
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile="pml-testing.csv", method="libcurl")
+}
+
+training <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+
+str(training)
+```
+
+### Clean the data
+
+We observe from the str() output above that the datasets have a significant amount of data with NA values.  Let's now eliminate these columns which are full of NA values.
+
+```{r}
+training <- training[, colSums(is.na(training)) == 0]
+testing <- testing[, colSums(is.na(testing)) == 0]
+
+str(training)
+```
+
+We also observe that the first seven columns represent fields related to the user identity as well as date and time stamps.  These fields are not proper prediction variables so let's eliminate these fields as well.
+
+```{r}
+training <- training[, -c(1:7)]
+testing <- testing[, -c(1:7)]
+
+str(training)
+```
+
+## Prediction Model Comparison
+
+### Load required R libraries
+
+```{r}
+library(caret)
+library(randomForest)
+library(e1071)
+library(gbm)
+library(rpart)
+```
+
+### Data partition
+
+```{r}
+inTrain  <- createDataPartition(training$classe, p=0.7, list=FALSE)
+trainSet <- training[inTrain, ]
+testSet <- training[-inTrain, ]
+```
+
+### Random Forest (RF)
+
+```{r}
+# Create prediction model from training set
+trControlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
+trainRF <- train(classe ~ ., data=trainSet, method="rf", trControl=trControlRF)
+trainRF$finalModel
+
+# Create predictions by applying the model to the TEST dataset
+predictRF <- predict(trainRF, newdata=testSet)
+confusionMatrixRF <- confusionMatrix(predictRF, testSet$classe)
+confusionMatrixRF
+
+# Output the accuracy of this prediction model
+accuracyRF <- round(confusionMatrixRF$overall['Accuracy'], 4)
+accuracyRF
+
+```
+
+### Generalized Boosted Model (GBM)
+
+```{r}
+# Create prediction model from training set
+trControlGBM <- trainControl(method="repeatedcv", number=5, repeats=1)
+trainGBM <- train(classe ~ ., data=trainSet, method="gbm", trControl=trControlGBM, verbose=FALSE)
+trainGBM$finalModel
+
+# Create predictions by applying the model to the TEST dataset
+predictGBM <- predict(trainGBM, newdata=testSet)
+confusionMatrixGBM <- confusionMatrix(predictGBM, testSet$classe)
+confusionMatrixGBM
+
+# Output the accuracy of this prediction model
+accuracyGBM <- round(confusionMatrixGBM$overall['Accuracy'], 4)
+accuracyGBM
+
+```
+
+## Conclusion
+
+From the prediction models created above, I will conclude that the Random Forest method produces the highest level of prediction accuracy.  I will therefore apply this prediction model to the dataset used for the final quiz.
+
+```{r}
+myPrediction <- predict(trainRF, newdata=testing)
+# Output my prediction
+myPrediction
+
+```
+
+
+
+
+
